@@ -19,7 +19,7 @@ c = 299792.458
 lamb1 = 5891.583
 lamb2 = 5897.558
 gauss = signal.gaussian(60, 2.46)
-dr = fits.open('/home/wuxy14/upload/sas/mangawork/manga/spectro/redux/v2_0_1/drpall-v2_0_1.fits')
+dr = fits.open('/home/wuxy14/upload/sas/mangawork/manga/spectro/redux/v2_0_1/drpall-v2_0_1.fits')  #the dir of drpall file
 
 """
 SNR & EW cutting criteria
@@ -92,14 +92,14 @@ def outflows(plate, ifu):
     for i in range(len(plate)):
         print (str(int(plate[i])) + '/' + str(int(ifu[i])))
         already = glob.glob('/home/wuxy14/upload/plot_drift_refit/' + str(int(plate[i])) + '-' + str(
-            int(ifu[i])))
+            int(ifu[i])))#check whether we have already saved the figure
         if len(already) == 0:
             finddap = glob.glob(
                 '/home/wuxy14/upload/VOR100/' + str(int(plate[i])) + '/' + str(
-                    int(ifu[i])) + '/*LOG*')
+                    int(ifu[i])) + '/*LOG*') #read LOG CUBE
             drp = glob.glob('/home/wuxy14/upload/VOR100/' + str(int(plate[i])) + '/' + str(
-                int(ifu[i])) + '/*MAP*')
-            binnum = np.loadtxt('/home/wuxy14/upload/' + str(int(plate[i])) + '-' + str(int(ifu[i])) + '.txt')
+                int(ifu[i])) + '/*MAP*') #read MAP
+            binnum = np.loadtxt('/home/wuxy14/upload/' + str(int(plate[i])) + '-' + str(int(ifu[i])) + '.txt')#this file saves the qualified bin number
             result = creat(finddap[0], drp[0], binnum)
 
     return result
@@ -121,7 +121,7 @@ def creat(finddap, drp, binnum):
     inver = vel_map[2].data
 
     """
-    this part creat arraies to save fitting result ##not used in this code 
+    this part creat arraies to save fitting result ##not used in this code cause we don't save velocity maps now 
     """
     shap = len(vel)
     v_map = np.zeros((shap, shap), float)
@@ -144,7 +144,7 @@ def creat(finddap, drp, binnum):
     v_map[np.where(v_map == 0)] = np.nan
 
     """
-    EM & SNR cutting qualified bins ##not used in this code 
+    EM & SNR cutting qualified bins ##not used in this code since we have already choose some spaxels by eye
     """
     ew = fits.open(
         '/home/wuxy14/upload/EW/' + drp.split('/')[-3] + '-' + drp.split('/')[-2] + '.fits')
@@ -205,7 +205,7 @@ def creat(finddap, drp, binnum):
             flux_error = g(flux_fit)
 
             """
-            fitting He line
+            fitting He line and subtract it
             """
             def He(x, amp, sigma, center):
                 return 1 + amp * np.exp(-((x - center) ** 2) / (2 * sigma ** 2))
@@ -221,6 +221,7 @@ def creat(finddap, drp, binnum):
 
             fluxfit = flux_fit + 1 - He(wavelength, he_output.best_values['amp'], he_output.best_values['sigma'],
                                         he_output.best_values['center'])
+            
             """
             use onecomponent line profile to get a rough value of Nd1,Nd2
             """
@@ -229,11 +230,14 @@ def creat(finddap, drp, binnum):
             par_one.add('nd1', value=20, min=1, max=400)
             par_one.add('v', value=0, min=-500, max=500)
             par_one.add('b_ism', value=100, min=0, max=300)
+            # fit one component model
             result2 = comparation.fit(fluxfit, par_one, x=wavelength, weights=flux_error,
                                       method='leastsqr', scale_covar=True)  # fit one component model
+            
             """
-            use Model_I as model and use MCMC to fit the data
+            use Model_I (two component model) to build fitting model and use MCMC to fit the data
             """
+            #create model and give each parameters its limit and short name
             intensity_fitter = pyspeckit.models.model.SpectralModel(Model_I, 6,
                                                                     parnames=['nd1', 'nd2', 'v', 'b', 'b_ism', 'velo'],
                                                                     parlimited=[(True, True), (True, True),
@@ -246,12 +250,17 @@ def creat(finddap, drp, binnum):
                                                                     shortvarnames=(
                                                                     'nd1', 'nd2', 'v', 'b', 'b_ism', 'velo'),
                                                                     )
+            #build spectrum
             sp = pyspeckit.Spectrum(data=fluxfit, xarr=wavelength, error=1 / flux_error)
+            #register fitter use the model we have bulit
             sp.specfit.register_fitter(name='Intensity', function=intensity_fitter, npars=6)
+            #fit the spectrum; use the result of one-component fitting to give the guess of Nd1&Nd2
             sp.specfit(fittype='Intensity',
                        guesses=[result2.best_values['nd1'] / 2, result2.best_values['nd1'] / 2, 0, 60, 60, 0])
+            #use MCMC to fit and get error
             MCwithpriors = sp.specfit.fitter.get_pymc(sp.xarr, sp.data, sp.error, use_fitted_values=True)
             MCwithpriors.sample(5000, burn=500)
+            
             """
             use mean value of each quantities as result and plot NaD origin points & fitting result
             """
@@ -272,9 +281,9 @@ def creat(finddap, drp, binnum):
             plt.plot(wavelength, ISM, label='ISM')
             plt.plot(wavelength, Wind, label='wind')
             plt.legend(loc='upper left', fontsize=7)
-            # os.system('mkdir /home/xwu61/plot_drift_refit/'+drp.split('/')[-3] + '-' +drp.split('/')[-2]+'/')
             plt.savefig(
                 '/home/wuxy14/upload/' + drp.split('/')[-3] + '-' + drp.split('/')[-2] + '_mcmc_' + str(bins) + '.png')
+            
             """
             plot correlation of each quantities
             """
@@ -325,4 +334,6 @@ def creat(finddap, drp, binnum):
 
     return MCwithpriors
 
-outflows(['7443'],['12703'])
+plate=['7443']
+ifu=['12703']  
+outflows(plate,ifu)
