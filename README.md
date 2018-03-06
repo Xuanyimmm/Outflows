@@ -1,6 +1,5 @@
 # Outflows
-use pyspeckit to do MCMC fitting
-
+#Fit NaD line profile and get the wind component.
 ------
 mcmc.py
 
