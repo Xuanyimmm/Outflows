@@ -19,7 +19,8 @@ c = 299792.458
 lamb1 = 5891.583
 lamb2 = 5897.558
 gauss = signal.gaussian(60, 2.46)
-dr = fits.open('/home/wuxy14/upload/sas/mangawork/manga/spectro/redux/v2_0_1/drpall-v2_0_1.fits')  #the dir of drpall file
+dr = fits.open('/Users/katerowlands/sas/mangawork/manga/spectro/redux/v2_0_1/drpall-v2_0_1.fits')  #the dir of drpall file
+dir = '/data/kate/Outflows/Outflows/'  #/home/wuxy14/upload/
 
 """
 SNR & EW cutting criteria
@@ -91,22 +92,22 @@ return:sampler of MCMC
 def outflows(plate, ifu):
     for i in range(len(plate)):
         print (str(int(plate[i])) + '/' + str(int(ifu[i])))
-        already = glob.glob('/home/wuxy14/upload/plot_drift_refit/' + str(int(plate[i])) + '-' + str(
+        already = glob.glob(dir+'plot_drift_refit/' + str(int(plate[i])) + '-' + str(
             int(ifu[i])))#check whether we have already saved the figure
         if len(already) == 0:
             finddap = glob.glob(
-                '/home/wuxy14/upload/VOR100/' + str(int(plate[i])) + '/' + str(
+                dir+'VOR100/' + str(int(plate[i])) + '/' + str(
                     int(ifu[i])) + '/*LOG*') #read LOG CUBE
-            drp = glob.glob('/home/wuxy14/upload/VOR100/' + str(int(plate[i])) + '/' + str(
+            drp = glob.glob(dir+'VOR100/' + str(int(plate[i])) + '/' + str(
                 int(ifu[i])) + '/*MAP*') #read MAP
-            binnum = np.loadtxt('/home/wuxy14/upload/' + str(int(plate[i])) + '-' + str(int(ifu[i])) + '.txt')#this file saves the qualified bin number
+            binnum = np.loadtxt(dir+'' + str(int(plate[i])) + '-' + str(int(ifu[i])) + '.txt')#this file saves the qualified bin number
             result = creat(finddap[0], drp[0], binnum)
 
     return result
 
 """
 use MCMC to fit NaD line profile
-and save the plots of fitting result & parameter correlation 
+and save the plots of fitting result & parameter correlation
 input:dir of dap and drp ; array of qualified(or what we think have wind) bins
 """
 def creat(finddap, drp, binnum):
@@ -121,7 +122,7 @@ def creat(finddap, drp, binnum):
     inver = vel_map[2].data
 
     """
-    this part creat arraies to save fitting result ##not used in this code cause we don't save velocity maps now 
+    this part creat arraies to save fitting result ##not used in this code cause we don't save velocity maps now
     """
     shap = len(vel)
     v_map = np.zeros((shap, shap), float)
@@ -147,7 +148,7 @@ def creat(finddap, drp, binnum):
     EM & SNR cutting qualified bins ##not used in this code since we have already choose some spaxels by eye
     """
     ew = fits.open(
-        '/home/wuxy14/upload/EW/' + drp.split('/')[-3] + '-' + drp.split('/')[-2] + '.fits')
+        dir+'EW/' + drp.split('/')[-3] + '-' + drp.split('/')[-2] + '.fits')
     eqw = ew[0].data
     err_eqw = ew[1].data
     snr_eqw = ew[2].data
@@ -221,7 +222,7 @@ def creat(finddap, drp, binnum):
 
             fluxfit = flux_fit + 1 - He(wavelength, he_output.best_values['amp'], he_output.best_values['sigma'],
                                         he_output.best_values['center'])
-            
+
             """
             use onecomponent line profile to get a rough value of Nd1,Nd2
             """
@@ -233,7 +234,7 @@ def creat(finddap, drp, binnum):
             # fit one component model
             result2 = comparation.fit(fluxfit, par_one, x=wavelength, weights=flux_error,
                                       method='leastsqr', scale_covar=True)  # fit one component model
-            
+
             """
             use Model_I (two component model) to build fitting model and use MCMC to fit the data
             """
@@ -260,7 +261,7 @@ def creat(finddap, drp, binnum):
             #use MCMC to fit and get error
             MCwithpriors = sp.specfit.fitter.get_pymc(sp.xarr, sp.data, sp.error, use_fitted_values=True)
             MCwithpriors.sample(5000, burn=500)
-            
+
             """
             use mean value of each quantities as result and plot NaD origin points & fitting result
             """
@@ -282,8 +283,8 @@ def creat(finddap, drp, binnum):
             plt.plot(wavelength, Wind, label='wind')
             plt.legend(loc='upper left', fontsize=7)
             plt.savefig(
-                '/home/wuxy14/upload/' + drp.split('/')[-3] + '-' + drp.split('/')[-2] + '_mcmc_' + str(bins) + '.png')
-            
+                dir+'' + drp.split('/')[-3] + '-' + drp.split('/')[-2] + '_mcmc_' + str(bins) + '.png')
+
             """
             plot correlation of each quantities
             """
@@ -299,7 +300,7 @@ def creat(finddap, drp, binnum):
                                 truths=[MCwithpriors.ND0.stats()['mean'], MCwithpriors.ND1.stats()['mean'], MCwithpriors.V0.stats()['mean'],
                                         MCwithpriors.B0.stats()['mean']
                                     , MCwithpriors.B_ISM0.stats()['mean'], MCwithpriors.VELO0.stats()['mean']])
-            fig.savefig('/home/wuxy14/upload/' + drp.split('/')[-3] + '-' + drp.split('/')[-2] + '_correlation_' + str(
+            fig.savefig(dir+'' + drp.split('/')[-3] + '-' + drp.split('/')[-2] + '_correlation_' + str(
                 bins) + '.png')
 
 
@@ -330,10 +331,10 @@ def creat(finddap, drp, binnum):
                 [sp1.VELO0.stats()['95% HPD interval'][0], sp1.VELO0.stats()['95% HPD interval'][1],
                  sp1.VELO0.stats()['mean'],
                  sp1.VELO0.stats()['mc error'], sp1.VELO0.stats()['standard deviation']], name='ISM velocity'))
-            newfits.writeto('/home/wuxy14/upload/' + drp.split('/')[-3] + '-' + drp.split('/')[-2] + str(bins)+'.fits')
+            newfits.writeto(dir+'' + drp.split('/')[-3] + '-' + drp.split('/')[-2] + str(bins)+'.fits')
 
     return MCwithpriors
 
 plate=['7443']
-ifu=['12703']  
+ifu=['12703']
 outflows(plate,ifu)
